@@ -6,7 +6,21 @@
     "name": "Ehsanur Rahman Rhythm",
     "email": "errhythm.me@gmail.com"
   },
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "logs",
+    "log-sanitizer",
+    "ai-tokens",
+    "prompt-sanitizer",
+    "jwt-redaction",
+    "log-cleaner"
+  ],
   "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -26,6 +40,7 @@
   ],
   "devDependencies": {
     "@eslint/js": "^9.39.1",
+    "@opencode-ai/plugin": "latest",
     "@types/node": "^20.11.5",
     "@typescript-eslint/eslint-plugin": "8.47.0",
     "@typescript-eslint/parser": "8.47.0",
