@@ -9,70 +9,67 @@
  * Usage in opencode.json:
  *
  *   {
- *     "plugins": {
- *       "opencode-log-sanitizer": {
- *         "maxStringLength": 300,
- *         "enableJwtDetection": true,
- *         "enableBcryptDetection": true,
- *         "enableBase64Detection": true
- *       }
- *     }
+ *     "plugin": ["opencode-log-sanitizer"]
  *   }
  */
 
-import { sanitize, type SanitizerConfig } from './sanitizer.ts';
+import type { Plugin } from '@opencode-ai/plugin';
+import { sanitize } from './sanitizer.ts';
 
 // ---------------------------------------------------------------------------
 // Plugin export
 // ---------------------------------------------------------------------------
 
 /**
- * ContextSanitizer — OpenCode plugin factory.
+ * ContextSanitizer — OpenCode plugin.
  *
- * @param config Optional configuration overrides (see SanitizerConfig).
+ * Hooks into `chat.message` to sanitize all TextPart content in the user
+ * message before it is sent to the AI model.
  *
  * @example
  * // opencode.json
  * {
- *   "plugins": {
- *     "opencode-log-sanitizer": {}
- *   }
+ *   "plugin": ["opencode-log-sanitizer"]
  * }
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const ContextSanitizer = (config?: Partial<SanitizerConfig>) => async (ctx: any) => {
+export const ContextSanitizer: Plugin = async ({ client }) => {
   return {
     /**
-     * `tui.prompt.append` fires just before the user's typed prompt is
-     * committed to the session and sent to the AI. We mutate `output.text`
-     * in-place to sanitize it.
-     *
-     * input  — read-only snapshot of the original prompt text
-     * output — mutable object; set output.text to change what the AI sees
+     * `chat.message` fires when a new user message is received, before it is
+     * sent to the LLM. We sanitize every TextPart in output.parts to redact
+     * sensitive or noisy values.
      */
-    'tui.prompt.append': async (input: { text: string }, output: { text: string }) => {
-      const original = output.text;
-      if (!original || original.trim().length === 0) return;
+    'chat.message': async (_input, output) => {
+      let totalRedactions = 0;
+      let savedChars = 0;
 
-      const { text: sanitized, redactionCount } = sanitize(original, config);
+      for (const part of output.parts) {
+        if (part.type !== 'text') continue;
 
-      if (redactionCount > 0) {
-        output.text = sanitized;
+        const original = part.text;
 
-        await ctx.client.app.log({
+        if (!original || original.trim().length === 0) continue;
+
+        const { text: sanitized, redactionCount } = sanitize(original);
+
+        if (redactionCount > 0) {
+          part.text = sanitized;
+          totalRedactions += redactionCount;
+          savedChars += original.length - sanitized.length;
+        }
+      }
+
+      if (totalRedactions > 0) {
+        await client.app.log({
           body: {
             service: 'opencode-log-sanitizer',
             level: 'info',
-            message: `Sanitized prompt: ${redactionCount} value(s) redacted`,
-            extra: {
-              originalLength: original.length,
-              sanitizedLength: sanitized.length,
-              redactionCount,
-              savedChars: original.length - sanitized.length,
-            },
+            message: `Sanitized prompt: ${totalRedactions} value(s) redacted, ${savedChars} chars saved`,
           },
         });
       }
     },
   };
 };
+
+export default ContextSanitizer;

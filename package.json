@@ -18,8 +18,10 @@
   ],
   "type": "module",
   "scripts": {
+    "build": "bun build ./src/index.ts --outdir dist --target bun --format esm && tsc -p tsconfig.build.json --emitDeclarationOnly",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
   },
   "exports": {
     ".": {
