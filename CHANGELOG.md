@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.1](https://github.com/errhythm/opencode-log-sanitizer/compare/v1.2.0...v1.2.1) (2026-03-12)
+
+
+### Bug Fixes
+
+* generate .d.ts declaration files in the build pipeline ([3713131](https://github.com/errhythm/opencode-log-sanitizer/commit/37131315dad96e559cb523ab4be78d83a7d804d1))
+
 ## [1.2.0](https://github.com/errhythm/opencode-log-sanitizer/compare/v1.1.2...v1.2.0) (2026-03-12)
 
 
