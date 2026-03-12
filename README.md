@@ -1,8 +1,8 @@
-# opencode-context-sanitizer
+# opencode-log-sanitizer
 
 > OpenCode plugin that automatically redacts JWT tokens, bcrypt hashes, base64 blobs, and long quoted strings from your prompts **before they reach the AI** — reducing token usage and removing irrelevant noise.
 
-[![npm](https://img.shields.io/npm/v/opencode-context-sanitizer)](https://www.npmjs.com/package/opencode-context-sanitizer)
+[![npm](https://img.shields.io/npm/v/opencode-log-sanitizer)](https://www.npmjs.com/package/opencode-log-sanitizer)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 I built this for my own use — I got tired of JWTs and base64 blobs eating up my token budget every time I pasted a log. Figured it might be useful for you too.
@@ -15,7 +15,7 @@ Add this to your `opencode.json`:
 
 ```json
 {
-  "plugin": ["opencode-context-sanitizer"]
+  "plugin": ["opencode-log-sanitizer"]
 }
 ```
 
@@ -64,7 +64,7 @@ Add the plugin to your `opencode.json`:
 
 ```json
 {
-  "plugin": ["opencode-context-sanitizer"]
+  "plugin": ["opencode-log-sanitizer"]
 }
 ```
 
@@ -84,7 +84,7 @@ All options are optional. Defaults work well out of the box.
 {
   "plugin": [
     [
-      "opencode-context-sanitizer",
+      "opencode-log-sanitizer",
       {
         "maxStringLength": 300,
         "enableJwtDetection": true,
@@ -171,8 +171,8 @@ Anything inside `<no-redact>…</no-redact>` is **never touched**, regardless of
 
 Contributions are welcome!
 
-- Found a bug? [Open an issue](https://github.com/errhythm/opencode-context-sanitizer/issues)
-- Have an idea? [Start a discussion](https://github.com/errhythm/opencode-context-sanitizer/discussions)
+- Found a bug? [Open an issue](https://github.com/errhythm/opencode-log-sanitizer/issues)
+- Have an idea? [Start a discussion](https://github.com/errhythm/opencode-log-sanitizer/discussions)
 - Want to add a new redaction pattern? See [CONTRIBUTING.md](./CONTRIBUTING.md)
 
 ---
@@ -180,8 +180,8 @@ Contributions are welcome!
 ## Development
 
 ```bash
-git clone https://github.com/errhythm/opencode-context-sanitizer.git
-cd opencode-context-sanitizer
+git clone https://github.com/errhythm/opencode-log-sanitizer.git
+cd opencode-log-sanitizer
 bun install
 bun test          # 38 test cases
 bun run build     # build dist/

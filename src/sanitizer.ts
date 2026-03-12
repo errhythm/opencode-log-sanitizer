@@ -1,5 +1,5 @@
 /**
- * opencode-context-sanitizer — core sanitization engine.
+ * opencode-log-sanitizer — core sanitization engine.
  *
  * All functions are pure (no side-effects) and safe for large inputs.
  * Regex patterns are designed to avoid catastrophic backtracking.

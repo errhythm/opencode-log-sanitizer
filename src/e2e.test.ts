@@ -83,7 +83,7 @@ afterAll(() => {
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('opencode-context-sanitizer plugin (e2e)', () => {
+describe('opencode-log-sanitizer plugin (e2e)', () => {
   it('redacts JWT, bcrypt hash, and base64 blob from a stored user message', async () => {
     // Create a throwaway session
     const sessionResp = await client!.session.create({
