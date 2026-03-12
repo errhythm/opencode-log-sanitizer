@@ -28,7 +28,7 @@ describe('no-redact block extraction', () => {
   it('extracts a single block and returns a placeholder', () => {
     const input = 'before <no-redact>secret</no-redact> after';
     const { text, blocks } = extractNoRedactBlocks(input);
-    expect(text).toBe('before __NOREDACT_0__ after');
+    expect(text).toBe('before __NR0__ after');
     expect(blocks).toHaveLength(1);
     expect(blocks[0].content).toBe('<no-redact>secret</no-redact>');
   });
@@ -36,7 +36,7 @@ describe('no-redact block extraction', () => {
   it('extracts multiple blocks with unique placeholders', () => {
     const input = '<no-redact>A</no-redact> mid <no-redact>B</no-redact>';
     const { text, blocks } = extractNoRedactBlocks(input);
-    expect(text).toBe('__NOREDACT_0__ mid __NOREDACT_1__');
+    expect(text).toBe('__NR0__ mid __NR1__');
     expect(blocks).toHaveLength(2);
   });
 
@@ -57,7 +57,7 @@ describe('no-redact block extraction', () => {
   it('handles multi-line content inside blocks', () => {
     const input = '<no-redact>\nline1\nline2\n</no-redact>';
     const { text, blocks } = extractNoRedactBlocks(input);
-    expect(text).toBe('__NOREDACT_0__');
+    expect(text).toBe('__NR0__');
     const restored = restoreNoRedactBlocks(text, blocks);
     expect(restored).toBe(input);
   });
