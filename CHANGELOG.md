@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/errhythm/opencode-log-sanitizer/compare/v1.1.0...v1.1.1) (2026-03-12)
+
+
+### Performance Improvements
+
+* eliminate debug logging and optimise hot path ([c48cee3](https://github.com/errhythm/opencode-log-sanitizer/commit/c48cee3c48f42a77c8d00259916ff8da4a271295))
+
 ## [1.1.0](https://github.com/errhythm/opencode-log-sanitizer/compare/v1.0.1...v1.1.0) (2026-03-12)
 
 
