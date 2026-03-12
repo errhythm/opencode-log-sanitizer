@@ -1,74 +1,79 @@
 /**
  * opencode-context-sanitizer
  *
- * An OpenCode plugin that sanitizes prompts before they are sent to the AI
- * model. It redacts sensitive or noisy values — JWT tokens, bcrypt hashes,
- * base64 blobs, and arbitrarily long quoted strings — to reduce token usage
- * and remove irrelevant noise.
+ * Intercepts outgoing prompts via the `chat.message` hook and redacts
+ * long / machine-generated values (JWTs, bcrypt hashes, base64 blobs,
+ * long quoted strings) before they reach the AI model.
  *
- * Usage in opencode.json:
+ * Hook anatomy (from @opencode-ai/plugin Hooks interface):
  *
- *   {
- *     "plugin": ["opencode-log-sanitizer"]
- *   }
+ *   "chat.message": async (input, output) => { ... }
+ *
+ *   output.parts  — mutable Part[] that will be sent to the LLM.
+ *                   Each TextPart has a `text` property we can rewrite.
+ *
+ * This is the only hook that lets a plugin modify prompt content before
+ * it is transmitted. `tui.prompt.append` is a *notification* that text was
+ * appended to the TUI input box; mutating its output has no effect on the
+ * model payload.
  */
 
 import type { Plugin } from '@opencode-ai/plugin';
-import { sanitize } from './sanitizer.ts';
+import type { Part } from '@opencode-ai/sdk';
+import { sanitize, type SanitizerConfig } from './sanitizer.ts';
 
 // ---------------------------------------------------------------------------
-// Plugin export
+// Plugin factory
 // ---------------------------------------------------------------------------
 
 /**
- * ContextSanitizer — OpenCode plugin.
+ * ContextSanitizer plugin factory.
  *
- * Hooks into `chat.message` to sanitize all TextPart content in the user
- * message before it is sent to the AI model.
+ * Accepts an optional partial config that overrides the defaults:
  *
- * @example
- * // opencode.json
- * {
- *   "plugin": ["opencode-log-sanitizer"]
- * }
+ *   opencode.json
+ *   { "plugin": [["opencode-context-sanitizer", { "maxStringLength": 200 }]] }
  */
-export const ContextSanitizer: Plugin = async ({ client }) => {
-  return {
-    /**
-     * `chat.message` fires when a new user message is received, before it is
-     * sent to the LLM. We sanitize every TextPart in output.parts to redact
-     * sensitive or noisy values.
-     */
-    'chat.message': async (_input, output) => {
-      let totalRedactions = 0;
-      let savedChars = 0;
+export const ContextSanitizer = (config?: Partial<SanitizerConfig>): Plugin => {
+  return async (ctx) => {
+    return {
+      /**
+       * `chat.message` fires just before a user message is sent to the LLM.
+       *
+       * `output.parts` is the mutable array of Part objects that will be
+       * forwarded to the model. We iterate over every TextPart and run the
+       * sanitization pipeline on its `.text` field.
+       */
+      'chat.message': async (_input, output) => {
+        let totalRedacted = 0;
 
-      for (const part of output.parts) {
-        if (part.type !== 'text') continue;
+        for (const part of output.parts as Part[]) {
+          // Only TextParts carry free-form user text worth sanitizing.
+          if (part.type !== 'text') continue;
 
-        const original = part.text;
+          const original = part.text;
+          if (!original || original.trim().length === 0) continue;
 
-        if (!original || original.trim().length === 0) continue;
+          const { text: sanitized, redactionCount } = sanitize(original, config);
 
-        const { text: sanitized, redactionCount } = sanitize(original);
-
-        if (redactionCount > 0) {
-          part.text = sanitized;
-          totalRedactions += redactionCount;
-          savedChars += original.length - sanitized.length;
+          if (redactionCount > 0) {
+            // Mutate in place — this is the object opencode will forward to the model.
+            (part as { text: string }).text = sanitized;
+            totalRedacted += redactionCount;
+          }
         }
-      }
 
-      if (totalRedactions > 0) {
-        await client.app.log({
-          body: {
-            service: 'opencode-log-sanitizer',
-            level: 'info',
-            message: `Sanitized prompt: ${totalRedactions} value(s) redacted, ${savedChars} chars saved`,
-          },
-        });
-      }
-    },
+        if (totalRedacted > 0 && ctx.client?.app?.log) {
+          await ctx.client.app.log({
+            body: {
+              service: 'opencode-context-sanitizer',
+              level: 'info',
+              message: `Sanitized prompt: ${totalRedacted} value(s) redacted`,
+            },
+          });
+        }
+      },
+    };
   };
 };
 

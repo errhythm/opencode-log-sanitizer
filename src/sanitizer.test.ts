@@ -74,10 +74,12 @@ describe('redactJwt', () => {
   it('redacts a bare JWT token in a log line', () => {
     const { text, count } = redactJwt(`token: ${sampleJwt}`);
     expect(text).not.toContain('eyJ');
+    expect(text).toContain('[redacted:jwt]');
     expect(count).toBeGreaterThan(0);
   });
 
-  it('redacts a JWT inside double quotes', () => {
+  it('redacts a JWT inside double quotes (the long-string pass catches the quoted form)', () => {
+    // JWT inside quotes: the bare pattern still matches the token content
     const { text, count } = redactJwt(`{"token": "${sampleJwt}"}`);
     expect(text).not.toContain('eyJ');
     expect(count).toBeGreaterThan(0);
@@ -88,6 +90,13 @@ describe('redactJwt', () => {
     const { text, count } = redactJwt(input);
     expect(text).toBe(input);
     expect(count).toBe(0);
+  });
+
+  it('does not produce double-redaction on already-replaced text', () => {
+    // After one pass, the token is gone — a second pass should be a no-op.
+    const { text: first } = redactJwt(`token: ${sampleJwt}`);
+    const { count: second } = redactJwt(first);
+    expect(second).toBe(0);
   });
 });
 
@@ -101,6 +110,7 @@ describe('redactBcrypt', () => {
   it('redacts a $2b$ bcrypt hash', () => {
     const { text, count } = redactBcrypt(`password_hash: ${hash}`);
     expect(text).not.toContain('$2b$');
+    expect(text).toContain('[redacted:bcrypt]');
     expect(count).toBe(1);
   });
 
@@ -124,18 +134,32 @@ describe('redactBcrypt', () => {
 // ---------------------------------------------------------------------------
 
 describe('redactBase64', () => {
-  const long64 = repeat('A', 400) + '==';
+  // A real base64 blob must contain at least one + or / — use a realistic value
+  const long64 = repeat('A', 200) + '/abc+' + repeat('B', 100) + '==';
 
   it('redacts a base64 blob longer than the threshold', () => {
     const { text, count } = redactBase64(`data: ${long64}`, 300);
     expect(text).not.toContain('AAAA');
+    expect(text).toContain('[redacted:base64:');
     expect(count).toBeGreaterThan(0);
   });
 
   it('does not redact a base64-like string shorter than the threshold', () => {
-    const short64 = repeat('A', 50);
+    const short64 = 'abc+/def' + repeat('A', 40); // ~48 chars, has + and /
     const { count } = redactBase64(`data: ${short64}`, 300);
     expect(count).toBe(0);
+  });
+
+  it('does not redact a plain alphanumeric string (no + or /)', () => {
+    // A 400-char string of only A-Za-z0-9 — should NOT be caught as base64
+    const pureAlpha = repeat('A', 400);
+    const { count } = redactBase64(pureAlpha, 300);
+    expect(count).toBe(0);
+  });
+
+  it('includes character count in the placeholder', () => {
+    const { text } = redactBase64(`data: ${long64}`, 300);
+    expect(text).toMatch(/\[redacted:base64:\d+chars\]/);
   });
 });
 
@@ -175,7 +199,6 @@ describe('redactLongStrings', () => {
   });
 
   it('handles escaped quotes inside a string correctly', () => {
-    // String with escaped quotes — should still count content length correctly
     const content = `he said \\"hello\\" and left`;
     const withQuotes = `"${content}"`;
     const { text, count } = redactLongStrings(withQuotes, 300);
@@ -190,13 +213,12 @@ describe('redactLongStrings', () => {
   });
 
   it('handles very large inputs efficiently', () => {
-    // 20k character input
     const large = repeat('x ', 5000) + `"${repeat('t', 1000)}"` + repeat(' y', 5000);
     const start = Date.now();
     const { count } = redactLongStrings(large, 300);
     const elapsed = Date.now() - start;
     expect(count).toBeGreaterThan(0);
-    expect(elapsed).toBeLessThan(500); // must complete in under 500ms
+    expect(elapsed).toBeLessThan(500);
   });
 
   it('handles malformed/arbitrary text without crashing', () => {
@@ -232,6 +254,7 @@ describe('sanitize (full pipeline)', () => {
     const input = `Authorization: Bearer ${jwt}`;
     const { text, redactionCount } = sanitize(input);
     expect(text).not.toContain('eyJ');
+    expect(text).toContain('[redacted:jwt]');
     expect(redactionCount).toBeGreaterThan(0);
   });
 
@@ -240,6 +263,7 @@ describe('sanitize (full pipeline)', () => {
     const input = `{"passwordHash": "${hash}"}`;
     const { text, redactionCount } = sanitize(input);
     expect(text).not.toContain('$2b$');
+    expect(text).toContain('[redacted:bcrypt]');
     expect(redactionCount).toBeGreaterThan(0);
   });
 
@@ -250,12 +274,30 @@ describe('sanitize (full pipeline)', () => {
     expect(redactionCount).toBeGreaterThan(0);
   });
 
+  it('redacts a real base64 blob (contains + or /)', () => {
+    const blob = repeat('A', 200) + '/abc+' + repeat('B', 100); // >300 chars, has / and +
+    const input = `avatar: ${blob}`;
+    const { text, redactionCount } = sanitize(input);
+    expect(text).not.toContain('AAAA');
+    expect(text).toContain('[redacted:base64:');
+    expect(redactionCount).toBeGreaterThan(0);
+  });
+
+  it('does NOT redact a long plain alphanumeric string as base64', () => {
+    // 400-char hex-like string: no + or / — should only be caught if quoted and >300
+    const hexLike = repeat('a1b2', 100); // 400 chars, no + or /
+    const input = `checksum: ${hexLike}`;
+    const { text, redactionCount } = sanitize(input);
+    // Not inside quotes, no + or / — should be left alone
+    expect(text).toBe(input);
+    expect(redactionCount).toBe(0);
+  });
+
   it('preserves content inside <no-redact> blocks', () => {
     const secret = repeat('a', 500);
     const input = `before <no-redact>"${secret}"</no-redact> after`;
     const { text, redactionCount } = sanitize(input);
     expect(text).toContain(secret);
-    // The content inside no-redact must survive untouched
     expect(text).toContain(`<no-redact>"${secret}"</no-redact>`);
     expect(redactionCount).toBe(0);
   });
@@ -267,12 +309,12 @@ describe('sanitize (full pipeline)', () => {
     const input = `${jwt} and <no-redact>"${secret}"</no-redact>`;
     const { text, redactionCount } = sanitize(input);
     expect(text).not.toContain('eyJ');
+    expect(text).toContain('[redacted:jwt]');
     expect(text).toContain(secret);
     expect(redactionCount).toBeGreaterThan(0);
   });
 
   it('respects custom maxStringLength configuration', () => {
-    // With threshold 50, a 60-char string should be redacted
     const input = `"${repeat('a', 60)}"`;
     const { redactionCount } = sanitize(input, { maxStringLength: 50 });
     expect(redactionCount).toBeGreaterThan(0);
@@ -283,7 +325,6 @@ describe('sanitize (full pipeline)', () => {
       'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U';
     const input = `token: ${jwt}`;
     const { text } = sanitize(input, { enableJwtDetection: false });
-    // JWT should NOT be redacted since detection is disabled
     expect(text).toContain('eyJ');
   });
 
@@ -306,5 +347,24 @@ describe('sanitize (full pipeline)', () => {
     expect(DEFAULT_CONFIG.enableJwtDetection).toBe(true);
     expect(DEFAULT_CONFIG.enableBcryptDetection).toBe(true);
     expect(DEFAULT_CONFIG.enableBase64Detection).toBe(true);
+  });
+
+  it('handles a realistic multi-field JSON log without crashing', () => {
+    const jwt =
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U';
+    const hash = '$2b$10$abcdefghijklmnopqrstuuABCDEFGHIJKLMNOPQRSTUVWXYZ01234';
+    const blob = repeat('A', 200) + '/abc+' + repeat('B', 100);
+    const input = JSON.stringify({
+      email: 'user@example.com',
+      passwordHash: hash,
+      token: jwt,
+      avatar: blob,
+      name: 'Alice',
+    });
+    const { text } = sanitize(input);
+    expect(text).toContain('user@example.com');
+    expect(text).toContain('Alice');
+    expect(text).not.toContain('eyJ');
+    expect(text).not.toContain('$2b$');
   });
 });
