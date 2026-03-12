@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.2](https://github.com/errhythm/opencode-log-sanitizer/compare/v1.1.1...v1.1.2) (2026-03-12)
+
+
+### Bug Fixes
+
+* correct project name references (opencode-log-sanitizer) ([3e6897b](https://github.com/errhythm/opencode-log-sanitizer/commit/3e6897b3a17b281b90c7283cf080eaa9489854d3))
+
 ## [1.1.1](https://github.com/errhythm/opencode-log-sanitizer/compare/v1.1.0...v1.1.1) (2026-03-12)
 
 
