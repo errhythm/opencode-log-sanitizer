@@ -29,4 +29,10 @@ export const ContextSanitizer = (config?: Partial<SanitizerConfig>): Plugin => {
   });
 };
 
-export default ContextSanitizer;
+/**
+ * Default export: a ready-to-use Plugin instance with default config.
+ * Opencode calls the default export directly as `plugin(input) => Promise<Hooks>`,
+ * so we export the already-instantiated Plugin, not the factory function.
+ * For custom config use the named export: ContextSanitizer({ maxStringLength: 200 })
+ */
+export default ContextSanitizer();
