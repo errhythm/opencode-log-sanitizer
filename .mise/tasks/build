@@ -2,9 +2,9 @@
 #MISE description="Build the project"
 #MISE depends=["setup"]
 #MISE sources=["src/**/*"]
-#MISE outputs=["dist/index.js"]
+#MISE outputs=["dist/index.js", "dist/index.d.ts"]
 
 bun build ./src/index.ts --outdir dist --target bun
 
-# If you need to exlude some packages from your bundle, you can use the --external flag. For example, to exclude the "lodash" package, you can run:
-# bun build ./src/index.ts --outdir dist --target bun --external lodash
+# Generate TypeScript declaration files (.d.ts) for npm consumers
+npx tsc --project tsconfig.build.json

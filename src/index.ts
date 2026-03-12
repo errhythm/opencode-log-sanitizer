@@ -1,6 +1,6 @@
 import type { Plugin } from '@opencode-ai/plugin';
 import type { Part } from '@opencode-ai/sdk';
-import { sanitize, resolveConfig, type SanitizerConfig } from './sanitizer.ts';
+import { sanitize, resolveConfig, type SanitizerConfig } from './sanitizer.js';
 
 /**
  * ContextSanitizer — OpenCode plugin that redacts long/machine-generated values
