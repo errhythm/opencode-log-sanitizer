@@ -1,6 +1,6 @@
 {
   "name": "opencode-log-sanitizer",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Sanitizes pasted logs before sending them to AI by redacting long quoted strings, JWT tokens, bcrypt hashes, and base64 blobs to reduce token usage and remove irrelevant noise.",
   "author": {
     "name": "Ehsanur Rahman Rhythm",
