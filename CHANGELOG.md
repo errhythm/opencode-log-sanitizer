@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.2](https://github.com/errhythm/opencode-log-sanitizer/compare/v1.2.1...v1.2.2) (2026-03-13)
+
+
+### Bug Fixes
+
+* correctly count escaped characters when redacting long strings and clean up test suite comments and assertions. ([d28f152](https://github.com/errhythm/opencode-log-sanitizer/commit/d28f152b079b6bc9074038498392e207f8741b8f))
+
 ## [1.2.1](https://github.com/errhythm/opencode-log-sanitizer/compare/v1.2.0...v1.2.1) (2026-03-12)
 
 
