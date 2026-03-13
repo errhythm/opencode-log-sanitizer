@@ -1,14 +1,3 @@
-/**
- * opencode-log-sanitizer — core sanitization engine.
- *
- * All functions are pure (no side-effects) and safe for large inputs.
- * Regex patterns are designed to avoid catastrophic backtracking.
- */
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
 export interface SanitizerConfig {
   /** Quoted strings / base64 blobs longer than this are redacted. @default 300 */
   maxStringLength: number;
@@ -37,32 +26,17 @@ export function resolveConfig(config?: Partial<SanitizerConfig>): SanitizerConfi
   return { ...DEFAULT_CONFIG, ...config };
 }
 
-// ---------------------------------------------------------------------------
-// Pre-compiled patterns (module-level — compiled once, reused forever)
-// ---------------------------------------------------------------------------
-
-/**
- * JWT: three dot-separated base64url segments, first starting with `eyJ`.
- * `\b` word-boundaries prevent re-matching already-redacted placeholders.
- */
+// JWT: three dot-separated base64url segments starting with `eyJ`.
+// Word boundaries prevent re-matching already-redacted placeholders.
 const JWT_PATTERN = /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g;
 
-/**
- * bcrypt: fixed-length format — no variable quantifiers, no backtracking risk.
- * Total hash length is always 60 chars.
- */
+// bcrypt: fixed 60-char format, no variable quantifiers.
 const BCRYPT_PATTERN = /\$2[aby]\$\d{2}\$[A-Za-z0-9./]{53}/g;
 
-/**
- * Base64 blob at the default threshold (300 chars).
- * Lookahead ensures at least one `+` or `/` — distinguishes real base64
- * from hex strings, UUIDs, and long alphanumeric identifiers.
- *
- * A second pattern is built lazily if the caller uses a non-default threshold.
- */
+// Base64 at the default 300-char threshold. Lookahead requires at least one `+` or `/`
+// to distinguish real base64 from hex strings, UUIDs, and long alphanumeric identifiers.
 const BASE64_PATTERN_300 = /(?=[A-Za-z0-9+/]*[+/])[A-Za-z0-9+/]{300,}={0,2}/g;
 
-// Cache for non-default thresholds (rare in practice).
 const base64PatternCache = new Map<number, RegExp>();
 
 function getBase64Pattern(minLength: number): RegExp {
@@ -75,19 +49,13 @@ function getBase64Pattern(minLength: number): RegExp {
   return pattern;
 }
 
-/** Fast check: is `<no-redact>` present at all? Avoids regex overhead on most inputs. */
 const NO_REDACT_OPEN = '<no-redact>';
-
-// ---------------------------------------------------------------------------
-// Step 1 — no-redact block extraction
-// ---------------------------------------------------------------------------
+const NO_REDACT_PATTERN = /<no-redact>([\s\S]*?)<\/no-redact>/g;
 
 interface NoRedactBlock {
   placeholder: string;
   content: string;
 }
-
-const NO_REDACT_PATTERN = /<no-redact>([\s\S]*?)<\/no-redact>/g;
 
 export function extractNoRedactBlocks(text: string): { text: string; blocks: NoRedactBlock[] } {
   const blocks: NoRedactBlock[] = [];
@@ -101,19 +69,13 @@ export function extractNoRedactBlocks(text: string): { text: string; blocks: NoR
 
 export function restoreNoRedactBlocks(text: string, blocks: NoRedactBlock[]): string {
   if (blocks.length === 0) return text;
-  // Build a single-pass replacement map instead of N full-string scans.
   const map: Record<string, string> = {};
   for (const b of blocks) map[b.placeholder] = b.content;
   return text.replace(/__NR\d+__/g, (ph) => map[ph] ?? ph);
 }
 
-// ---------------------------------------------------------------------------
-// Step 2 — JWT redaction
-// ---------------------------------------------------------------------------
-
 export function redactJwt(text: string): { text: string; count: number } {
   let count = 0;
-  // Reset lastIndex before each use — patterns are module-level with /g flag.
   JWT_PATTERN.lastIndex = 0;
   const result = text.replace(JWT_PATTERN, () => {
     count++;
@@ -121,10 +83,6 @@ export function redactJwt(text: string): { text: string; count: number } {
   });
   return { text: result, count };
 }
-
-// ---------------------------------------------------------------------------
-// Step 3 — bcrypt redaction
-// ---------------------------------------------------------------------------
 
 export function redactBcrypt(text: string): { text: string; count: number } {
   let count = 0;
@@ -135,10 +93,6 @@ export function redactBcrypt(text: string): { text: string; count: number } {
   });
   return { text: result, count };
 }
-
-// ---------------------------------------------------------------------------
-// Step 4 — base64 blob redaction
-// ---------------------------------------------------------------------------
 
 export function redactBase64(text: string, minLength: number): { text: string; count: number } {
   const pattern = getBase64Pattern(minLength);
@@ -151,16 +105,12 @@ export function redactBase64(text: string, minLength: number): { text: string; c
   return { text: result, count };
 }
 
-// ---------------------------------------------------------------------------
-// Step 5 — long quoted-string redaction  (linear scan, no regex)
-// ---------------------------------------------------------------------------
-
 /**
- * Scan through `text` identifying single/double-quoted string literals.
- * Strings whose content exceeds `maxLength` chars are replaced with `"redacted"`.
+ * Redacts single/double-quoted string literals whose content exceeds `maxLength`.
  *
- * Uses a linear scan with slice-range accumulation — O(n), no per-char push.
- * Handles: escaped quotes, multi-line strings, unterminated strings (kept as-is).
+ * Linear O(n) scan — no regex, no catastrophic backtracking.
+ * Escape sequences count as 1 logical character towards `contentLength`.
+ * Unterminated strings are left as-is.
  */
 export function redactLongStrings(
   text: string,
@@ -168,7 +118,7 @@ export function redactLongStrings(
 ): { text: string; count: number } {
   const parts: string[] = [];
   let i = 0;
-  let segStart = 0; // start of current unmodified run
+  let segStart = 0;
   let count = 0;
   const len = text.length;
 
@@ -189,7 +139,7 @@ export function redactLongStrings(
       const c = text[j];
       if (c === '\\') {
         j += 2;
-        contentLength += 2;
+        contentLength++;
         continue;
       }
       if (c === openQuote) {
@@ -207,7 +157,6 @@ export function redactLongStrings(
     }
 
     if (contentLength > maxLength) {
-      // Flush the unmodified run up to this quote, then push the redaction.
       parts.push(text.slice(segStart, i));
       parts.push('"redacted"');
       count++;
@@ -218,39 +167,19 @@ export function redactLongStrings(
     }
   }
 
-  // Flush any remaining unmodified tail.
   if (segStart < len) parts.push(text.slice(segStart));
 
   return { text: parts.join(''), count };
 }
 
-// ---------------------------------------------------------------------------
-// Main pipeline
-// ---------------------------------------------------------------------------
-
 /**
- * Run the full sanitization pipeline on `text`:
- *
- * 1. Extract `<no-redact>` blocks        → placeholders
- * 2. Redact JWT tokens                   → `[redacted:jwt]`
- * 3. Redact bcrypt hashes                → `[redacted:bcrypt]`
- * 4. Redact long base64 blobs            → `[redacted:base64:Nchars]`
- * 5. Redact long quoted strings          → `"redacted"`
- * 6. Restore `<no-redact>` blocks
- *
- * Accepts a pre-resolved `SanitizerConfig` (pass `resolveConfig(partial)` once
- * at plugin init) or a raw partial config (resolved internally — slightly slower).
+ * Internal pipeline — takes a pre-resolved config to avoid per-call resolution.
+ * Use this on the hot path (plugin hook). For ad-hoc use, call `sanitize()`.
  */
-export function sanitize(
-  text: string,
-  config?: Partial<SanitizerConfig> | SanitizerConfig
-): SanitizeResult {
+export function _sanitize(text: string, cfg: SanitizerConfig): SanitizeResult {
   if (!text) return { text, redactionCount: 0 };
 
-  const cfg = resolveConfig(config);
   let totalRedactions = 0;
-
-  // Fast-path: skip no-redact machinery when the marker is absent.
   const hasNoRedact = text.includes(NO_REDACT_OPEN);
   let current = text;
   let blocks: NoRedactBlock[] = [];
@@ -261,19 +190,19 @@ export function sanitize(
     blocks = extracted.blocks;
   }
 
-  if (cfg.enableJwtDetection) {
+  if (cfg.enableJwtDetection && current.includes('eyJ')) {
     const { text: t, count } = redactJwt(current);
     current = t;
     totalRedactions += count;
   }
 
-  if (cfg.enableBcryptDetection) {
+  if (cfg.enableBcryptDetection && current.includes('$2')) {
     const { text: t, count } = redactBcrypt(current);
     current = t;
     totalRedactions += count;
   }
 
-  if (cfg.enableBase64Detection) {
+  if (cfg.enableBase64Detection && (current.includes('+') || current.includes('/'))) {
     const { text: t, count } = redactBase64(current, cfg.maxStringLength);
     current = t;
     totalRedactions += count;
@@ -288,4 +217,12 @@ export function sanitize(
   }
 
   return { text: current, redactionCount: totalRedactions };
+}
+
+/** Sanitize `text` with an optional partial config. Resolves config on each call. */
+export function sanitize(
+  text: string,
+  config?: Partial<SanitizerConfig> | SanitizerConfig
+): SanitizeResult {
+  return _sanitize(text, resolveConfig(config));
 }
