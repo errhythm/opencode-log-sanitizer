@@ -35,11 +35,16 @@ const DIRTY_PROMPT = [
 let server: Awaited<ReturnType<typeof createOpencode>>['server'] | null = null;
 let client: Awaited<ReturnType<typeof createOpencode>>['client'] | null = null;
 
-const PLUGIN_URI =
-  'file://' +
-  path.resolve(process.env.HOME ?? '/root', '.config/opencode/plugins/opencode-log-sanitizer.js');
+const PLUGIN_URI = 'file://' + path.resolve(process.cwd(), 'dist/index.js');
 
 beforeAll(async () => {
+  await Bun.build({
+    entrypoints: [path.resolve(process.cwd(), 'src/index.ts')],
+    outdir: path.resolve(process.cwd(), 'dist'),
+    target: 'bun',
+    format: 'esm',
+  });
+
   const result = await createOpencode({
     timeout: 30_000,
     config: {

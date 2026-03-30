@@ -7,6 +7,10 @@ export interface SanitizerConfig {
   enableBcryptDetection: boolean;
   /** Detect and redact base64 blobs longer than `maxStringLength`. @default true */
   enableBase64Detection: boolean;
+  /** Emit debug logs for plugin lifecycle and message sanitization. @default false */
+  debug: boolean;
+  /** File path for JSONL debug logs when debug is enabled. */
+  debugLogFile: string;
 }
 
 export const DEFAULT_CONFIG: SanitizerConfig = {
@@ -14,11 +18,19 @@ export const DEFAULT_CONFIG: SanitizerConfig = {
   enableJwtDetection: true,
   enableBcryptDetection: true,
   enableBase64Detection: true,
+  debug: false,
+  debugLogFile: '~/.local/share/opencode/opencode-log-sanitizer.debug.log',
 };
 
 export interface SanitizeResult {
   text: string;
   redactionCount: number;
+  redactions: {
+    jwt: number;
+    bcrypt: number;
+    base64: number;
+    longString: number;
+  };
 }
 
 export function resolveConfig(config?: Partial<SanitizerConfig>): SanitizerConfig {
@@ -177,9 +189,16 @@ export function redactLongStrings(
  * Use this on the hot path (plugin hook). For ad-hoc use, call `sanitize()`.
  */
 export function _sanitize(text: string, cfg: SanitizerConfig): SanitizeResult {
-  if (!text) return { text, redactionCount: 0 };
+  if (!text) {
+    return {
+      text,
+      redactionCount: 0,
+      redactions: { jwt: 0, bcrypt: 0, base64: 0, longString: 0 },
+    };
+  }
 
   let totalRedactions = 0;
+  const redactions = { jwt: 0, bcrypt: 0, base64: 0, longString: 0 };
   const hasNoRedact = text.includes(NO_REDACT_OPEN);
   let current = text;
   let blocks: NoRedactBlock[] = [];
@@ -194,29 +213,33 @@ export function _sanitize(text: string, cfg: SanitizerConfig): SanitizeResult {
     const { text: t, count } = redactJwt(current);
     current = t;
     totalRedactions += count;
+    redactions.jwt += count;
   }
 
   if (cfg.enableBcryptDetection && current.includes('$2')) {
     const { text: t, count } = redactBcrypt(current);
     current = t;
     totalRedactions += count;
+    redactions.bcrypt += count;
   }
 
   if (cfg.enableBase64Detection && (current.includes('+') || current.includes('/'))) {
     const { text: t, count } = redactBase64(current, cfg.maxStringLength);
     current = t;
     totalRedactions += count;
+    redactions.base64 += count;
   }
 
   const { text: t5, count: c5 } = redactLongStrings(current, cfg.maxStringLength);
   current = t5;
   totalRedactions += c5;
+  redactions.longString += c5;
 
   if (hasNoRedact) {
     current = restoreNoRedactBlocks(current, blocks);
   }
 
-  return { text: current, redactionCount: totalRedactions };
+  return { text: current, redactionCount: totalRedactions, redactions };
 }
 
 /** Sanitize `text` with an optional partial config. Resolves config on each call. */

@@ -17,8 +17,9 @@
     "log-cleaner"
   ],
   "type": "module",
+  "main": "./dist/index.js",
   "scripts": {
-    "build": "bun build ./src/index.ts --outdir dist --target bun --format esm",
+    "build": "bun build ./src/index.ts --outdir dist --target bun --format esm && tsc -p tsconfig.build.json --emitDeclarationOnly",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
