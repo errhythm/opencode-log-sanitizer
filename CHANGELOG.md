@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.3](https://github.com/errhythm/opencode-log-sanitizer/compare/v1.2.2...v1.2.3) (2026-03-30)
+
+
+### Bug Fixes
+
+* load plugin config and add sanitizer debug logs ([4881dae](https://github.com/errhythm/opencode-log-sanitizer/commit/4881daed82aa5f4c070671d88eae854844d5b53f))
+
 ## [1.2.2](https://github.com/errhythm/opencode-log-sanitizer/compare/v1.2.1...v1.2.2) (2026-03-13)
 
 
