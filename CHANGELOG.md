@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/errhythm/opencode-log-sanitizer/compare/v1.2.3...v1.3.0) (2026-04-10)
+
+
+### Features
+
+* preserve long HTML and JSX class attribute values in redaction ([1aa0486](https://github.com/errhythm/opencode-log-sanitizer/commit/1aa0486fc32f57ffa1cfb22958a5c7e11df037e5))
+
 ## [1.2.3](https://github.com/errhythm/opencode-log-sanitizer/compare/v1.2.2...v1.2.3) (2026-03-30)
 
 
