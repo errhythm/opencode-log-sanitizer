@@ -168,7 +168,10 @@ export function redactLongStrings(
       continue;
     }
 
-    if (contentLength > maxLength) {
+    const attributePrefix = text.slice(Math.max(0, i - 16), i);
+    const isHtmlClassAttribute = /(?:class|className)\s*=\s*$/u.test(attributePrefix);
+
+    if (contentLength > maxLength && !isHtmlClassAttribute) {
       parts.push(text.slice(segStart, i));
       parts.push('"redacted"');
       count++;

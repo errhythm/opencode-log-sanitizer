@@ -157,6 +157,29 @@ describe('redactLongStrings', () => {
     expect(count).toBe(1);
   });
 
+  it('does not redact a long HTML class attribute value', () => {
+    const classList = repeat('btn-primary ', 40).trim();
+    const input = `<div class="${classList}">content</div>`;
+    const { text, count } = redactLongStrings(input, 300);
+    expect(text).toBe(input);
+    expect(count).toBe(0);
+  });
+
+  it('does not redact a long JSX className attribute value', () => {
+    const classList = repeat('md:grid-cols-12 ', 30).trim();
+    const input = `<div className="${classList}">content</div>`;
+    const { text, count } = redactLongStrings(input, 300);
+    expect(text).toBe(input);
+    expect(count).toBe(0);
+  });
+
+  it('still redacts long non-class HTML attribute values', () => {
+    const input = `<div data-token="${repeat('x', 400)}">content</div>`;
+    const { text, count } = redactLongStrings(input, 300);
+    expect(text).toContain('"redacted"');
+    expect(count).toBe(1);
+  });
+
   it('handles escaped quotes inside a string correctly', () => {
     const withQuotes = `"he said \\"hello\\" and left"`;
     const { text, count } = redactLongStrings(withQuotes, 300);
@@ -229,6 +252,14 @@ describe('sanitize (full pipeline)', () => {
     const { text, redactionCount } = sanitize(`{"token": "${repeat('a', 500)}"}`);
     expect(text).toContain('"redacted"');
     expect(redactionCount).toBeGreaterThan(0);
+  });
+
+  it('preserves long HTML class attributes in the full pipeline', () => {
+    const classList = repeat('inline-flex items-center justify-center ', 12).trim();
+    const input = `<button class="${classList}">Click me</button>`;
+    const { text, redactionCount } = sanitize(input);
+    expect(text).toBe(input);
+    expect(redactionCount).toBe(0);
   });
 
   it('redacts a real base64 blob (contains + or /)', () => {

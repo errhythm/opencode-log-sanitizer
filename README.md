@@ -54,6 +54,8 @@ The sanitization pipeline runs in this order:
 5. Redact quoted strings longer than `maxStringLength` → `"redacted"` (linear-time scanner, no regex backtracking)
 6. Restore the `<no-redact>` placeholders
 
+Long HTML/JSX `class` and `className` attribute values are preserved so utility-class-heavy markup does not get redacted as a long string.
+
 ---
 
 ## Installation
