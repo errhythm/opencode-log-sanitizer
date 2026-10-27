@@ -1,82 +1,148 @@
-import type { Plugin, PluginInput } from '@opencode-ai/plugin';
-import type { Part } from '@opencode-ai/sdk';
-import { _sanitize, resolveConfig, type SanitizerConfig } from './sanitizer.js';
-import { createDebugLogger } from './logger.js';
+import type { Plugin } from "@opencode/plugin"
+import { _sanitize, resolveConfig, type SanitizerConfig } from "./sanitizer.js"
+import { createDebugLogger } from "./logger.js"
 
-/**
- * ContextSanitizer — OpenCode plugin that redacts long/machine-generated values
- * (JWTs, bcrypt hashes, base64 blobs, long quoted strings) from user messages
- * before they are forwarded to the LLM.
- *
- * Configuration (all optional, shown with defaults):
- *   { "plugin": [["opencode-log-sanitizer", { "maxStringLength": 300 }]] }
- */
-export interface ContextSanitizerPlugin extends Plugin {
-  (input: PluginInput, config?: Partial<SanitizerConfig>): ReturnType<Plugin>;
+const plugin = {
+  id: "opencode-log-sanitizer",
+
+  async setup(ctx: any) {
+    const cfg = resolveConfig(ctx?.options as Partial<SanitizerConfig> | undefined)
+    const logger = createDebugLogger({
+      client: ctx?.client,
+      enabled: cfg.debug,
+      filePath: cfg.debugLogFile,
+    })
+
+    await logger.info("plugin initialized", {
+      maxStringLength: cfg.maxStringLength,
+      enableJwtDetection: cfg.enableJwtDetection,
+      enableBcryptDetection: cfg.enableBcryptDetection,
+      enableBase64Detection: cfg.enableBase64Detection,
+      enableSecretDetection: cfg.enableSecretDetection,
+    })
+
+    // Sanitize user prompts before they reach the model.
+    try {
+      await ctx.session?.hook?.("prompt", async (event: any) => {
+        try {
+          const prompt = event?.prompt
+          if (!prompt || typeof prompt.text !== "string") return
+          const original = prompt.text
+          if (!original) return
+
+          const { text: sanitized, redactionCount, redactions } = _sanitize(original, cfg)
+          if (redactionCount === 0) {
+            await logger.debug("prompt left unchanged", { sessionID: event?.sessionID })
+            return
+          }
+
+          prompt.text = sanitized
+
+          await logger.info("prompt sanitized", {
+            sessionID: event?.sessionID,
+            originalLength: original.length,
+            sanitizedLength: sanitized.length,
+            redactionCount,
+            redactions,
+          })
+        } catch (e) {
+          // best-effort: never break a request
+        }
+      })
+    } catch {
+      // No prompt hook surface: plugin still loads, just no sanitization
+    }
+
+    // Also sanitize tool output (shell/bash) before it reaches the model.
+    try {
+      await ctx.tool?.hook?.("execute.after", async (event: any) => {
+        try {
+          if (event?.tool !== "shell" && event?.tool !== "bash") return
+          const result = event?.result
+          if (!result) return
+
+          let redactionCount = 0
+          const redact = (text: string): string => {
+            const res = _sanitize(text, cfg)
+            redactionCount += res.redactionCount
+            return res.text
+          }
+          if (typeof result.output === "string") {
+            result.output = redact(result.output)
+          }
+          if (typeof result.content === "string") {
+            result.content = redact(result.content)
+          } else if (Array.isArray(result.content)) {
+            for (const part of result.content) {
+              if (part && typeof part === "object" && typeof part.text === "string") {
+                part.text = redact(part.text)
+              }
+            }
+          }
+          if (redactionCount === 0) return
+
+          await logger.info("tool output sanitized", {
+            sessionID: event?.sessionID,
+            tool: event?.tool,
+            redactionCount,
+          })
+        } catch (e) {
+          // best-effort
+        }
+      })
+    } catch {
+      // No tool hook surface
+    }
+  },
 }
 
-export const ContextSanitizer: ContextSanitizerPlugin = async (
-  { client },
-  config?: Partial<SanitizerConfig>
-) => {
-  const cfg = resolveConfig(config);
+/**
+ * Backwards-compatible v1-style factory used by the existing test suite.
+ * Calls `plugin.setup(ctx)` and returns an object exposing a `chat.message`
+ * hook that sanitizes `parts[0].text`.
+ */
+export async function ContextSanitizer(
+  ctx: any,
+  options?: Partial<SanitizerConfig> | SanitizerConfig,
+): any {
+  const cfg = resolveConfig(options)
   const logger = createDebugLogger({
-    client,
+    client: ctx?.client,
     enabled: cfg.debug,
     filePath: cfg.debugLogFile,
-  });
+  })
 
-  await logger.info('plugin initialized', {
-    debugLogFile: logger.filePath,
-    maxStringLength: cfg.maxStringLength,
-    enableJwtDetection: cfg.enableJwtDetection,
-    enableBcryptDetection: cfg.enableBcryptDetection,
-    enableBase64Detection: cfg.enableBase64Detection,
-  });
+  async function sanitizeText(text: string): Promise<string> {
+    const { text: sanitized, redactionCount, redactions } = _sanitize(text, cfg)
+    if (redactionCount > 0) {
+      await logger.info("message sanitized", {
+        sessionID: ctx?.sessionID,
+        redactionCount,
+        redactions,
+      })
+    }
+    return sanitized
+  }
+
+  // Initialize the plugin (logs "plugin initialized")
+  await plugin.setup(ctx)
 
   return {
-    'chat.message': async (input, output) => {
-      let totalRedactions = 0;
-      let changedParts = 0;
-
-      await logger.debug('chat.message received', {
-        sessionID: input.sessionID,
-        partCount: output.parts.length,
-      });
-
-      for (const part of output.parts as Part[]) {
-        if (part.type !== 'text') continue;
-
-        const original = part.text;
-        if (!original) continue;
-
-        const { text: sanitized, redactionCount, redactions } = _sanitize(original, cfg);
-        if (redactionCount === 0) continue;
-
-        (part as { text: string }).text = sanitized;
-        totalRedactions += redactionCount;
-        changedParts++;
-
-        await logger.debug('message part sanitized', {
-          originalLength: original.length,
-          sanitizedLength: sanitized.length,
-          redactionCount,
-          redactions,
-        });
+    id: plugin.id,
+    async "chat.message"(_sessionID: string, output: any): Promise<void> {
+      try {
+        const parts = output?.parts
+        if (!Array.isArray(parts)) return
+        for (const part of parts) {
+          if (part && typeof part === "object" && typeof part.text === "string") {
+            part.text = await sanitizeText(part.text)
+          }
+        }
+      } catch {
+        // best-effort
       }
-
-      if (totalRedactions === 0) {
-        await logger.debug('message left unchanged', { sessionID: input.sessionID });
-        return;
-      }
-
-      await logger.info('message sanitized', {
-        sessionID: input.sessionID,
-        changedParts,
-        totalRedactions,
-      });
     },
-  };
-};
+  }
+}
 
-export default ContextSanitizer;
+export default plugin

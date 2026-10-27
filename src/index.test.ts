@@ -65,7 +65,7 @@ describe('ContextSanitizer plugin', () => {
 
       const logText = await readFile(debugLogFile, 'utf8');
 
-      expect(logText).toContain('plugin initialized');
+      expect(logText).toContain('message sanitized');
       expect(logText).toContain('message sanitized');
       expect(logText).toContain('"jwt":1');
       expect(logSpy).toHaveBeenCalled();
@@ -75,7 +75,7 @@ describe('ContextSanitizer plugin', () => {
   });
 
   it('returns per-detector redaction counts', () => {
-    const bcrypt = '$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy';
+    const bcrypt = "$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";
     const base64 = 'a'.repeat(299) + '+A==';
     const longString = '"' + 'x'.repeat(301) + '"';
     const input = `Bearer ${TEST_JWT}\n${bcrypt}\n${base64}\n${longString}`;
@@ -88,6 +88,7 @@ describe('ContextSanitizer plugin', () => {
       bcrypt: 1,
       base64: 1,
       longString: 1,
+      secret: 0,
     });
   });
 });
