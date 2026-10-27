@@ -1,100 +1,99 @@
-import type { Plugin } from "@opencode/plugin"
-import { _sanitize, resolveConfig, type SanitizerConfig } from "./sanitizer.js"
-import { createDebugLogger } from "./logger.js"
+import { _sanitize, resolveConfig, type SanitizerConfig } from './sanitizer.js';
+import { createDebugLogger } from './logger.js';
 
 const plugin = {
-  id: "opencode-log-sanitizer",
+  id: 'opencode-log-sanitizer',
 
   async setup(ctx: any) {
-    const cfg = resolveConfig(ctx?.options as Partial<SanitizerConfig> | undefined)
+    const cfg = resolveConfig(ctx?.options as Partial<SanitizerConfig> | undefined);
     const logger = createDebugLogger({
       client: ctx?.client,
       enabled: cfg.debug,
       filePath: cfg.debugLogFile,
-    })
+    });
 
-    await logger.info("plugin initialized", {
+    await logger.info('plugin initialized', {
       maxStringLength: cfg.maxStringLength,
       enableJwtDetection: cfg.enableJwtDetection,
       enableBcryptDetection: cfg.enableBcryptDetection,
       enableBase64Detection: cfg.enableBase64Detection,
       enableSecretDetection: cfg.enableSecretDetection,
-    })
+    });
 
     // Sanitize user prompts before they reach the model.
     try {
-      await ctx.session?.hook?.("prompt", async (event: any) => {
+      await ctx.session?.hook?.('prompt', async (event: any) => {
         try {
-          const prompt = event?.prompt
-          if (!prompt || typeof prompt.text !== "string") return
-          const original = prompt.text
-          if (!original) return
+          const prompt = event?.prompt;
+          if (!prompt || typeof prompt.text !== 'string') return;
+          const original = prompt.text;
+          if (!original) return;
 
-          const { text: sanitized, redactionCount, redactions } = _sanitize(original, cfg)
+          const { text: sanitized, redactionCount, redactions } = _sanitize(original, cfg);
           if (redactionCount === 0) {
-            await logger.debug("prompt left unchanged", { sessionID: event?.sessionID })
-            return
+            await logger.debug('prompt left unchanged', { sessionID: event?.sessionID });
+            return;
           }
 
-          prompt.text = sanitized
+          prompt.text = sanitized;
 
-          await logger.info("prompt sanitized", {
+          await logger.info('prompt sanitized', {
             sessionID: event?.sessionID,
             originalLength: original.length,
             sanitizedLength: sanitized.length,
             redactionCount,
             redactions,
-          })
-        } catch (e) {
+          });
+        } catch {
           // best-effort: never break a request
         }
-      })
+      });
     } catch {
       // No prompt hook surface: plugin still loads, just no sanitization
     }
 
     // Also sanitize tool output (shell/bash) before it reaches the model.
     try {
-      await ctx.tool?.hook?.("execute.after", async (event: any) => {
+      await ctx.tool?.hook?.('execute.after', async (event: any) => {
         try {
-          if (event?.tool !== "shell" && event?.tool !== "bash") return
-          const result = event?.result
-          if (!result) return
+          if (event?.tool !== 'shell' && event?.tool !== 'bash') return;
+          const result = event?.result;
+          if (!result) return;
 
-          let redactionCount = 0
+          let redactionCount = 0;
           const redact = (text: string): string => {
-            const res = _sanitize(text, cfg)
-            redactionCount += res.redactionCount
-            return res.text
+            const res = _sanitize(text, cfg);
+            redactionCount += res.redactionCount;
+            return res.text;
+          };
+          if (typeof result.output === 'string') {
+            result.output = redact(result.output);
           }
-          if (typeof result.output === "string") {
-            result.output = redact(result.output)
-          }
-          if (typeof result.content === "string") {
-            result.content = redact(result.content)
+          if (typeof result.content === 'string') {
+            result.content = redact(result.content);
           } else if (Array.isArray(result.content)) {
             for (const part of result.content) {
-              if (part && typeof part === "object" && typeof part.text === "string") {
-                part.text = redact(part.text)
+              if (part && typeof part === 'object' && typeof part.text === 'string') {
+                part.text = redact(part.text);
               }
             }
           }
-          if (redactionCount === 0) return
+          if (redactionCount === 0) return;
 
-          await logger.info("tool output sanitized", {
+          await logger.info('tool output sanitized', {
             sessionID: event?.sessionID,
             tool: event?.tool,
             redactionCount,
-          })
-        } catch (e) {
+          });
+        } catch {
           // best-effort
         }
-      })
+      });
     } catch {
       // No tool hook surface
     }
   },
-}
+};
 
 /**
  * Backwards-compatible v1-style factory used by the existing test suite.
@@ -103,46 +102,46 @@ const plugin = {
  */
 export async function ContextSanitizer(
   ctx: any,
-  options?: Partial<SanitizerConfig> | SanitizerConfig,
+  options?: Partial<SanitizerConfig> | SanitizerConfig
 ): any {
-  const cfg = resolveConfig(options)
+  const cfg = resolveConfig(options);
   const logger = createDebugLogger({
     client: ctx?.client,
     enabled: cfg.debug,
     filePath: cfg.debugLogFile,
-  })
+  });
 
   async function sanitizeText(text: string): Promise<string> {
-    const { text: sanitized, redactionCount, redactions } = _sanitize(text, cfg)
+    const { text: sanitized, redactionCount, redactions } = _sanitize(text, cfg);
     if (redactionCount > 0) {
-      await logger.info("message sanitized", {
+      await logger.info('message sanitized', {
         sessionID: ctx?.sessionID,
         redactionCount,
         redactions,
-      })
+      });
     }
-    return sanitized
+    return sanitized;
   }
 
   // Initialize the plugin (logs "plugin initialized")
-  await plugin.setup(ctx)
+  await plugin.setup(ctx);
 
   return {
     id: plugin.id,
-    async "chat.message"(_sessionID: string, output: any): Promise<void> {
+    async 'chat.message'(_sessionID: string, output: any): Promise<void> {
       try {
-        const parts = output?.parts
-        if (!Array.isArray(parts)) return
+        const parts = output?.parts;
+        if (!Array.isArray(parts)) return;
         for (const part of parts) {
-          if (part && typeof part === "object" && typeof part.text === "string") {
-            part.text = await sanitizeText(part.text)
+          if (part && typeof part === 'object' && typeof part.text === 'string') {
+            part.text = await sanitizeText(part.text);
           }
         }
       } catch {
         // best-effort
       }
     },
-  }
+  };
 }
 
-export default plugin
+export default plugin;

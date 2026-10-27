@@ -75,7 +75,7 @@ describe('ContextSanitizer plugin', () => {
   });
 
   it('returns per-detector redaction counts', () => {
-    const bcrypt = "$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";
+    const bcrypt = '$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy';
     const base64 = 'a'.repeat(299) + '+A==';
     const longString = '"' + 'x'.repeat(301) + '"';
     const input = `Bearer ${TEST_JWT}\n${bcrypt}\n${base64}\n${longString}`;

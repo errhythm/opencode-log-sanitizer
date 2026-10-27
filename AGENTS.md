@@ -5,6 +5,9 @@
 - **Build**: `mise run build` or `bun build ./src/index.ts --outdir dist --target bun`
 - **Test**: `mise run test` or `bun test`
 - **Type check**: `mise run typecheck` or `tsc --noEmit`
+- **Lint**: `mise run lint` (eslint)
+- **Fix Lint**: `mise run lint:fix` (eslint --fix)
+- **Format**: `mise run format` (prettier)
 - **Single Test**: `bun test src/sanitizer.test.ts` (use file glob pattern)
 - **Watch Mode**: `bun test --watch`
 
@@ -39,6 +42,12 @@
 - Check error type before accessing error properties: `error instanceof Error ? error.toString() : String(error)`
 - Log errors with `[ERROR]` prefix for consistency
 - Always provide error context when recording output
+
+### Linting Rules
+
+- `@typescript-eslint/no-explicit-any`: warn (avoid `any` type)
+- `no-console`: error (minimize console logs)
+- `prettier/prettier`: error (formatting violations are errors)
 
 ## Testing
 

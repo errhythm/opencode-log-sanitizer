@@ -6,7 +6,7 @@ type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 interface AppLogger {
   app?: {
-    log?: (input: {
+    log?: (_input: {
       body: {
         service: string;
         level: LogLevel;
@@ -46,6 +46,7 @@ export function createDebugLogger(options: DebugLoggerOptions) {
   const filePath = resolveLogPath(options.filePath);
 
   async function log(
+    _input: LogLevel,
     level: LogLevel,
     message: string,
     extra?: Record<string, unknown>
