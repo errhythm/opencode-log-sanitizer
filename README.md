@@ -1,8 +1,7 @@
-# opencode-log-sanitizer
+# opencode-log-sanitizer-v2
 
-> OpenCode plugin that automatically redacts JWT tokens, bcrypt hashes, base64 blobs, and long quoted strings from your prompts **before they reach the AI** — reducing token usage and removing irrelevant noise.
+> OpenCode plugin that automatically redacts JWT tokens, bcrypt hashes, base64 blobs, long quoted strings, and common secret tokens (API keys, GitHub/GitLab tokens, AWS keys, etc.) from your prompts **before they reach the AI** — reducing token usage and removing irrelevant noise.
 
-[![npm](https://img.shields.io/npm/v/opencode-log-sanitizer)](https://www.npmjs.com/package/opencode-log-sanitizer)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 I built this for my own use — I got tired of JWTs and base64 blobs eating up my token budget every time I pasted a log. Figured it might be useful for you too.
@@ -11,13 +10,23 @@ I built this for my own use — I got tired of JWTs and base64 blobs eating up m
 
 ## Quick Start
 
-Add this to your `opencode.json`:
+Add this to your `opencode.jsonc`:
 
-```json
+```jsonc
 {
-  "plugin": ["opencode-log-sanitizer"]
+  "plugin": [
+    "file:///home/famewolf/projects/opencode/opencode-log-sanitizer-v2"
+  ]
 }
 ```
+
+Or install via npm:
+
+```bash
+bun install opencode-log-sanitizer-v2
+```
+
+Then add `"opencode-log-sanitizer-v2"` to your plugin list.
 
 Restart OpenCode. Done. Sensitive values in your prompts are redacted automatically before they reach the model.
 
@@ -33,126 +42,68 @@ When you paste a large log into OpenCode, the plugin sanitizes it before the AI 
 | bcrypt hashes              | `$2b$10$abc...`                 | `[redacted:bcrypt]`          |
 | base64 blobs ≥ 300 chars   | `iVBORw0KGgo....(900 chars)`    | `[redacted:base64:984chars]` |
 | Quoted strings ≥ 300 chars | `"a very long token value..."`  | `"redacted"`                 |
+| API keys / access tokens   | `sk-...`, `ghp_...`, `AKIA...`  | `[redacted:secret]`          |
 
 No config needed. Works on any text you type or paste.
 
 ---
 
-## How it works
-
-The plugin hooks into OpenCode's **`chat.message`** event. This hook fires just before the user message is forwarded to the LLM, and provides a mutable `output.parts` array. The plugin iterates over every `TextPart` and runs the sanitization pipeline on its `.text` field.
-
-> **Why not `tui.prompt.append`?**  
-> `tui.prompt.append` fires when text is appended to the TUI input box. It is a notification event — mutating its output does **not** change what gets sent to the model. `chat.message` is the correct interception point.
-
-The sanitization pipeline runs in this order:
-
-1. Extract `<no-redact>` blocks → replace with temporary placeholders
-2. Redact JWT tokens → `[redacted:jwt]`
-3. Redact bcrypt hashes → `[redacted:bcrypt]`
-4. Redact base64 blobs longer than `maxStringLength` → `[redacted:base64:Nchars]`
-5. Redact quoted strings longer than `maxStringLength` → `"redacted"` (linear-time scanner, no regex backtracking)
-6. Restore the `<no-redact>` placeholders
-
-Long HTML/JSX `class` and `className` attribute values are preserved so utility-class-heavy markup does not get redacted as a long string.
-
----
-
-## Installation
-
-### From npm (recommended)
-
-Add the plugin to your `opencode.json`:
-
-```json
-{
-  "plugin": ["opencode-log-sanitizer"]
-}
-```
-
-OpenCode installs npm plugins automatically using Bun at startup. Packages are cached in `~/.cache/opencode/node_modules/`.
-
-### From a local file
-
-Copy `dist/index.js` into `.opencode/plugins/` in your project (or `~/.config/opencode/plugins/` globally). OpenCode loads all files in those directories at startup.
-
----
-
 ## Configuration
 
-All options are optional. Defaults work well out of the box.
+All options are optional. Pass them via your plugin config:
 
-```json
+```jsonc
 {
   "plugin": [
-    [
-      "opencode-log-sanitizer",
-      {
-        "maxStringLength": 300,
-        "enableJwtDetection": true,
-        "enableBcryptDetection": true,
-        "enableBase64Detection": true
-      }
-    ]
+    "file:///home/famewolf/projects/opencode/opencode-log-sanitizer-v2",
+    {
+      "maxStringLength": 300,
+      "enableJwtDetection": true,
+      "enableBcryptDetection": true,
+      "enableBase64Detection": true,
+      "enableSecretDetection": true,
+      "debug": false,
+      "debugLogFile": "~/.local/share/opencode/opencode-log-sanitizer.debug.log"
+    }
   ]
 }
 ```
 
-| Option                  | Type      | Default | Description                                                  |
-| ----------------------- | --------- | ------- | ------------------------------------------------------------ |
-| `maxStringLength`       | `number`  | `300`   | Quoted strings or base64 blobs longer than this are redacted |
-| `enableJwtDetection`    | `boolean` | `true`  | Redact JWT tokens (`eyJ...header.payload.sig`)               |
-| `enableBcryptDetection` | `boolean` | `true`  | Redact bcrypt hashes (`$2a$`, `$2b$`, `$2y$`)                |
-| `enableBase64Detection` | `boolean` | `true`  | Redact base64 blobs longer than `maxStringLength` chars      |
+| Option                   | Default   | Description                                  |
+| ------------------------ | --------- | -------------------------------------------- |
+| `maxStringLength`        | `300`     | Max chars before quoted strings/base64 are redacted |
+| `enableJwtDetection`     | `true`    | Redact JWT tokens (`eyJ...`)                  |
+| `enableBcryptDetection`  | `true`    | Redact bcrypt hashes (`$2b$...`)              |
+| `enableBase64Detection`  | `true`    | Redact base64 blobs (≥ maxStringLength chars) |
+| `enableSecretDetection`  | `true`    | Redact secret tokens (API keys, etc.)         |
+| `debug`                  | `false`   | Write debug logs to `debugLogFile`            |
+| `debugLogFile`           | see below | Path for JSONL debug logs                     |
 
 ---
 
-## The `<no-redact>` bypass
+## What it does not redact
 
-Need to include a specific value verbatim? Wrap it in `<no-redact>` tags:
-
-```
-I need you to decode this token exactly:
-<no-redact>
-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U
-</no-redact>
-
-The rest of my log can be sanitized normally: ...
-```
-
-Anything inside `<no-redact>…</no-redact>` is **never touched**, regardless of length or content.
+- Plain alphanumeric strings shorter than `maxStringLength` (e.g. hex hashes, UUIDs) — intentional, to avoid false positives
+- Anything inside `<no-redact>…</no-redact>` tags
 
 ---
 
-## Before / After
+## How it works
 
-**Before (what you type):**
+The plugin hooks into OpenCode's v2 plugin API:
 
-```json
-{
-  "email": "user@example.com",
-  "passwordHash": "$2b$10$abcdefghijklmnopqrstuuABCDEFGHIJKLMNOPQRSTUVWXYZ01234",
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c",
-  "avatar": "iVBORw0KGgoAAAANSUhEUgAAAoAAAAKACAYAAAAMuvCsAAA....(900 more chars)...."
-}
-```
+- **`session.execution.started`** — detects when a new execution begins (gated to avoid wiping the counter on your own stall-continue injects)
+- **`session.tool.failed` / `session.step.started`** — tracks tool failures and step progress
+- **`session.prompt`** — sanitizes user prompts before they reach the model
+- **`execute.after` (shell/bash)** — sanitizes tool output before it reaches the model
 
-**After (what the AI sees):**
-
-```json
-{
-  "email": "user@example.com",
-  "passwordHash": "[redacted:bcrypt]",
-  "token": "[redacted:jwt]",
-  "avatar": "[redacted:base64:984chars]"
-}
-```
+Counters are gated so that your own stall-continue injects do not reset the visible progress counter, and the rung claim is released if a nudge is never consumed (suppressed/declined), so the ordinal never advances on a nudge that never lands.
 
 ---
 
 ## Troubleshooting
 
-**My value isn't being redacted**
+**Something isn't being redacted**
 
 - Check `maxStringLength` — if the value is a bare (unquoted) string shorter than 300 chars, it won't be caught by the quoted-string rule. Wrap it manually or lower the threshold.
 - JWT detection requires the three-part `header.payload.signature` format starting with `eyJ`, with each segment ≥ 10 characters.
@@ -164,8 +115,9 @@ Anything inside `<no-redact>…</no-redact>` is **never touched**, regardless of
 
 **Nothing seems to be happening**
 
-- Make sure the plugin is listed in `opencode.json` under `"plugin"`.
+- Make sure the plugin is listed in `opencode.jsonc` under `"plugin"`.
 - Restart OpenCode after config changes.
+- Check the debug log at `~/.local/share/opencode/opencode-log-sanitizer.debug.log` (enable `debug: true`).
 
 ---
 

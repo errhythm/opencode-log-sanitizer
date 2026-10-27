@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.0.0](https://github.com/errhythm/opencode-log-sanitizer/compare/v1.3.0...v2.0.0) (2026-10-26)
+
+
+### Features
+
+* add secret-token redaction (sk-, ghp_, AKIA, AIza, xox*, etc.) ([8fcddde](https://github.com/errhythm/opencode-log-sanitizer/commit/8fcddde))
+* migrate to OpenCode v2 plugin API (session.hook prompt + execute.after) ([60c7c09](https://github.com/errhythm/opencode-log-sanitizer/commit/60c7c09))
+
+### Breaking Changes
+
+* rename package from `opencode-log-sanitizer` to `opencode-log-sanitizer-v2` ([60c7c09](https://github.com/errhythm/opencode-log-sanitizer/commit/60c7c09))
+* drop eslint in favor of lighter dev dependency set ([60c7c09](https://github.com/errhythm/opencode-log-sanitizer/commit/60c7c09))
+
 ## [1.3.0](https://github.com/errhythm/opencode-log-sanitizer/compare/v1.2.3...v1.3.0) (2026-04-10)
 
 
