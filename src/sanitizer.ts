@@ -9,6 +9,8 @@ export interface SanitizerConfig {
   enableBase64Detection: boolean;
   /** Detect and redact common secret tokens (API keys, GitHub/GitLab tokens, AWS keys, etc.). @default true */
   enableSecretDetection: boolean;
+  /** Detect and redact passwords in key/value pairs and connection strings. @default true */
+  enablePasswordDetection: boolean;
   /** Emit debug logs for plugin lifecycle and message sanitization. @default false */
   debug: boolean;
   /** File path for JSONL debug logs when debug is enabled. */
@@ -21,6 +23,7 @@ export const DEFAULT_CONFIG: SanitizerConfig = {
   enableBcryptDetection: true,
   enableBase64Detection: true,
   enableSecretDetection: true,
+  enablePasswordDetection: true,
   debug: false,
   debugLogFile: '~/.local/share/opencode/opencode-log-sanitizer.debug.log',
 };
@@ -34,6 +37,7 @@ export interface SanitizeResult {
     base64: number;
     longString: number;
     secret: number;
+    password: number;
   };
 }
 
@@ -116,6 +120,22 @@ export function redactSecrets(text: string): { text: string; count: number } {
   const result = text.replace(SECRET_PATTERN, () => {
     count++;
     return '[redacted:secret]';
+  });
+  return { text: result, count };
+}
+
+const PASSWORD_KV_PATTERN = /\b(password|passwd|pwd)(\s*[:=]\s*)("(?:[^"]*)"|'(?:[^']*)'|[^\s,;]+)/gi;
+const CONN_STR_PATTERN = /(\/\/[^:/\s]+):([^@\s]+)@/g;
+
+export function redactPasswords(text: string): { text: string; count: number } {
+  let count = 0;
+  let result = text.replace(PASSWORD_KV_PATTERN, (_m, key, delim) => {
+    count++;
+    return `${key}${delim}[redacted:password]`;
+  });
+  result = result.replace(CONN_STR_PATTERN, (_m, prefix) => {
+    count++;
+    return `${prefix}:[redacted:password]@`;
   });
   return { text: result, count };
 }
@@ -210,12 +230,12 @@ export function _sanitize(text: string, cfg: SanitizerConfig): SanitizeResult {
     return {
       text,
       redactionCount: 0,
-      redactions: { jwt: 0, bcrypt: 0, base64: 0, longString: 0 },
+      redactions: { jwt: 0, bcrypt: 0, base64: 0, longString: 0, secret: 0, password: 0 },
     };
   }
 
   let totalRedactions = 0;
-  const redactions = { jwt: 0, bcrypt: 0, base64: 0, longString: 0, secret: 0 };
+  const redactions = { jwt: 0, bcrypt: 0, base64: 0, longString: 0, secret: 0, password: 0 };
   const hasNoRedact = text.includes(NO_REDACT_OPEN);
   let current = text;
   let blocks: NoRedactBlock[] = [];
@@ -245,6 +265,13 @@ export function _sanitize(text: string, cfg: SanitizerConfig): SanitizeResult {
     current = t;
     totalRedactions += count;
     redactions.secret += count;
+  }
+
+  if (cfg.enablePasswordDetection) {
+    const { text: t, count } = redactPasswords(current);
+    current = t;
+    totalRedactions += count;
+    redactions.password += count;
   }
 
   if (cfg.enableBase64Detection && (current.includes('+') || current.includes('/'))) {
