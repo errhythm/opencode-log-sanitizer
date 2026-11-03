@@ -19,7 +19,9 @@
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
-    "build": "bun build ./src/index.ts --outdir dist --target bun --format esm && tsc -p tsconfig.build.json --emitDeclarationOnly",
+    "build": "bun run build:v1 && bun run build:v2",
+    "build:v1": "bun build src/dispatch.ts --outfile dist/index.js --target bun",
+    "build:v2": "bun build src/v2/index.ts --outfile dist/v2/index.js --target bun",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
@@ -41,8 +43,10 @@
     "access": "public"
   },
   "files": [
-    "dist",
-    "src/version.ts"
+    "dist/index.js",
+    "dist/v2/index.js",
+    "README.md",
+    "LICENSE"
   ],
   "devDependencies": {
     "@opencode/plugin": "2.0.16",

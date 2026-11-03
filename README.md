@@ -8,9 +8,53 @@ I built this for my own use — I got tired of JWTs and base64 blobs eating up m
 
 ---
 
-## Quick Start
+## Installation
 
-Add this to your `opencode.jsonc`:
+### opencode 1.x
+
+Add to your `opencode.jsonc`:
+
+```jsonc
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": ["opencode-log-sanitizer-v2"]
+}
+```
+
+With options:
+
+```jsonc
+{
+  "plugin": [
+    ["opencode-log-sanitizer-v2", {
+      "maxStringLength": 300,
+      "enableJwtDetection": true,
+      "debug": false
+    }]
+  ]
+}
+```
+
+### opencode 2.x
+
+Requires opencode 2.0.5+. Add to your `opencode.json` — note the **plural `plugins` key** and the object form; options under v1's singular `plugin` key load but are never delivered on v2:
+
+```jsonc
+{
+  "plugins": [
+    {
+      "package": "opencode-log-sanitizer-v2",
+      "options": {
+        "maxStringLength": 300,
+        "enableJwtDetection": true,
+        "debug": false
+      }
+    }
+  ]
+}
+```
+
+Local development (this repo):
 
 ```jsonc
 {
@@ -20,13 +64,7 @@ Add this to your `opencode.jsonc`:
 }
 ```
 
-Or install via npm:
-
-```bash
-bun install opencode-log-sanitizer-v2
-```
-
-Then add `"opencode-log-sanitizer-v2"` to your plugin list.
+To uninstall, delete the entry from `opencode.jsonc` (v1: the `plugin` array item, v2: the `plugins` object) and restart the server. To clear the cached copy too, remove `~/.cache/opencode/packages/opencode-log-sanitizer-v2@*`.
 
 Restart OpenCode. Done. Sensitive values in your prompts are redacted automatically before they reach the model.
 
