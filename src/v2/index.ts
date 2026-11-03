@@ -95,7 +95,8 @@ const plugin = {
   },
 };
 
+export default plugin;
+
 // Re-export the v1-style factory to avoid duplicating its implementation.
 export { ContextSanitizer } from '../index.ts';
 
-export default plugin;
