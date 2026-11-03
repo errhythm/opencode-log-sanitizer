@@ -39,7 +39,7 @@ const PLUGIN_URI = 'file://' + path.resolve(process.cwd(), 'dist/index.js');
 
 beforeAll(async () => {
   await Bun.build({
-    entrypoints: [path.resolve(process.cwd(), 'src/index.ts')],
+    entrypoints: [path.resolve(process.cwd(), 'src/dispatch.ts')],
     outdir: path.resolve(process.cwd(), 'dist'),
     target: 'bun',
     format: 'esm',
