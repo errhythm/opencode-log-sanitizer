@@ -95,53 +95,7 @@ const plugin = {
   },
 };
 
-/**
- * Backwards-compatible v1-style factory used by the existing test suite.
- * Calls `plugin.setup(ctx)` and returns an object exposing a `chat.message`
- * hook that sanitizes `parts[0].text`.
- */
-export async function ContextSanitizer(
-  ctx: any,
-  options?: Partial<SanitizerConfig> | SanitizerConfig
-): any {
-  const cfg = resolveConfig(options);
-  const logger = createDebugLogger({
-    client: ctx?.client,
-    enabled: cfg.debug,
-    filePath: cfg.debugLogFile,
-  });
-
-  async function sanitizeText(text: string): Promise<string> {
-    const { text: sanitized, redactionCount, redactions } = _sanitize(text, cfg);
-    if (redactionCount > 0) {
-      await logger.info('message sanitized', {
-        sessionID: ctx?.sessionID,
-        redactionCount,
-        redactions,
-      });
-    }
-    return sanitized;
-  }
-
-  // Initialize the plugin (logs "plugin initialized")
-  await plugin.setup(ctx);
-
-  return {
-    id: plugin.id,
-    async 'chat.message'(_sessionID: string, output: any): Promise<void> {
-      try {
-        const parts = output?.parts;
-        if (!Array.isArray(parts)) return;
-        for (const part of parts) {
-          if (part && typeof part === 'object' && typeof part.text === 'string') {
-            part.text = await sanitizeText(part.text);
-          }
-        }
-      } catch {
-        // best-effort
-      }
-    },
-  };
-}
+// Re-export the v1-style factory to avoid duplicating its implementation.
+export { ContextSanitizer } from '../index.ts';
 
 export default plugin;

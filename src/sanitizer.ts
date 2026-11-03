@@ -60,16 +60,9 @@ const SECRET_PATTERN =
 // to distinguish real base64 from hex strings, UUIDs, and long alphanumeric identifiers.
 const BASE64_PATTERN_300 = /(?=[A-Za-z0-9+/]*[+/])[A-Za-z0-9+/]{300,}={0,2}/g;
 
-const base64PatternCache = new Map<number, RegExp>();
-
 function getBase64Pattern(minLength: number): RegExp {
   if (minLength === 300) return BASE64_PATTERN_300;
-  let pattern = base64PatternCache.get(minLength);
-  if (!pattern) {
-    pattern = new RegExp(`(?=[A-Za-z0-9+/]*[+/])[A-Za-z0-9+/]{${minLength},}={0,2}`, 'g');
-    base64PatternCache.set(minLength, pattern);
-  }
-  return pattern;
+  return new RegExp(`(?=[A-Za-z0-9+/]*[+/])[A-Za-z0-9+/]{${minLength},}={0,2}`, 'g');
 }
 
 const NO_REDACT_OPEN = '<no-redact>';
