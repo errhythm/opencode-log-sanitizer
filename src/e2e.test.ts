@@ -38,6 +38,7 @@ let client: Awaited<ReturnType<typeof createOpencode>>['client'] | null = null;
 const PLUGIN_URI = 'file://' + path.resolve(process.cwd(), 'dist/index.js');
 
 beforeAll(async () => {
+  if (!Bun.which?.('opencode')) return;
   await Bun.build({
     entrypoints: [path.resolve(process.cwd(), 'src/dispatch.ts')],
     outdir: path.resolve(process.cwd(), 'dist'),
