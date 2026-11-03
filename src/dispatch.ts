@@ -7,10 +7,10 @@
  * `server()`. See: https://opencode.ai/v2/docs/build/plugins (Support V1).
  */
 
-import { ContextSanitizer } from "./index"
-import v2 from "./v2/index"
+import { ContextSanitizer } from './index';
+import v2 from './v2/index';
 
 export default {
   ...v2,
   server: ContextSanitizer,
-}
+};

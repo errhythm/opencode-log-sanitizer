@@ -124,7 +124,8 @@ export function redactSecrets(text: string): { text: string; count: number } {
   return { text: result, count };
 }
 
-const PASSWORD_KV_PATTERN = /\b(password|passwd|pwd)(\s*[:=]\s*)("(?:[^"]*)"|'(?:[^']*)'|[^\s,;]+)/gi;
+const PASSWORD_KV_PATTERN =
+  /\b(password|passwd|pwd)(\s*[:=]\s*)("(?:[^"]*)"|'(?:[^']*)'|[^\s,;]+)/gi;
 const CONN_STR_PATTERN = /(\/\/[^:/\s]+):([^@\s]+)@/g;
 
 export function redactPasswords(text: string): { text: string; count: number } {
