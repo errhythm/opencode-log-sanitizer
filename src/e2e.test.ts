@@ -79,7 +79,7 @@ async function getUserText(sessionID: string): Promise<string> {
     .join('');
 }
 
-describe('opencode-log-sanitizer plugin (e2e)', () => {
+describe.skipIf(!Bun.which?.('opencode'))('opencode-log-sanitizer plugin (e2e)', () => {
   it('redacts JWT, bcrypt hash, and base64 blob from a stored user message', async () => {
     const sessionResp = await client!.session.create({ query: { directory: '/tmp' } });
     expect(sessionResp.data?.id, 'session should be created').toBeTruthy();
