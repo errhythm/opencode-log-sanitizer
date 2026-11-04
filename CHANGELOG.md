@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0](https://github.com/errhythm/opencode-log-sanitizer/compare/v1.3.0...v1.4.0) (2026-11-04)
+
+
+### Features
+
+* add dual v1/v2 support and password redaction ([#11](https://github.com/errhythm/opencode-log-sanitizer/issues/11)) ([b6238b7](https://github.com/errhythm/opencode-log-sanitizer/commit/b6238b785b82323bc744e9f63b7cde50bf017491))
+
 ## [1.3.0](https://github.com/errhythm/opencode-log-sanitizer/compare/v1.2.3...v1.3.0) (2026-04-10)
 
 
