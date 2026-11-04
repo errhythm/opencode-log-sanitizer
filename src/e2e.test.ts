@@ -35,10 +35,11 @@ const DIRTY_PROMPT = [
 let server: Awaited<ReturnType<typeof createOpencode>>['server'] | null = null;
 let client: Awaited<ReturnType<typeof createOpencode>>['client'] | null = null;
 
+const HAS_OPENCODE = typeof Bun !== 'undefined' && !!Bun.which('opencode');
 const PLUGIN_URI = 'file://' + path.resolve(process.cwd(), 'dist/index.js');
 
 beforeAll(async () => {
-  if (!Bun.which?.('opencode')) return;
+  if (!HAS_OPENCODE) return;
   await Bun.build({
     entrypoints: [path.resolve(process.cwd(), 'src/dispatch.ts')],
     outdir: path.resolve(process.cwd(), 'dist'),
@@ -80,7 +81,7 @@ async function getUserText(sessionID: string): Promise<string> {
     .join('');
 }
 
-describe.skipIf(!Bun.which?.('opencode'))('opencode-log-sanitizer plugin (e2e)', () => {
+describe.skipIf(!HAS_OPENCODE)('opencode-log-sanitizer plugin (e2e)', () => {
   it('redacts JWT, bcrypt hash, and base64 blob from a stored user message', async () => {
     const sessionResp = await client!.session.create({ query: { directory: '/tmp' } });
     expect(sessionResp.data?.id, 'session should be created').toBeTruthy();

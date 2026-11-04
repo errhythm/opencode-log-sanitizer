@@ -125,8 +125,9 @@ export function redactSecrets(text: string): { text: string; count: number } {
 }
 
 const PASSWORD_KV_PATTERN =
-  /\b(password|passwd|pwd)(\s*[:=]\s*)("(?:[^"]*)"|'(?:[^']*)'|[^\s,;]+)/gi;
-const CONN_STR_PATTERN = /(\/\/[^:/\s]+):([^@\s]+)@/g;
+  /\b(password|passwd|pwd)(["']?\s*[:=]\s*)("(?:[^"]*)"|'(?:[^']*)'|[^\s,;]+)/gi;
+// Password segment excludes `/` so `http://host:3000/path/@me` is not treated as credentials.
+const CONN_STR_PATTERN = /(\/\/[^:/\s]+):([^@\s/]+)@/g;
 
 export function redactPasswords(text: string): { text: string; count: number } {
   let count = 0;

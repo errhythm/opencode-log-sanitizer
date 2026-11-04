@@ -65,7 +65,7 @@ describe('ContextSanitizer plugin', () => {
 
       const logText = await readFile(debugLogFile, 'utf8');
 
-      expect(logText).toContain('message sanitized');
+      expect(logText).toContain('plugin initialized');
       expect(logText).toContain('message sanitized');
       expect(logText).toContain('"jwt":1');
       expect(logSpy).toHaveBeenCalled();
