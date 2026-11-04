@@ -12,7 +12,7 @@ import { createDebugLogger } from './logger.js';
  *   { "plugin": [["opencode-log-sanitizer", { "maxStringLength": 300 }]] }
  */
 export interface ContextSanitizerPlugin extends Plugin {
-  (input: PluginInput, config?: Partial<SanitizerConfig>): ReturnType<Plugin>;
+  (_input: PluginInput, _config?: Partial<SanitizerConfig>): ReturnType<Plugin>;
 }
 
 export const ContextSanitizer: ContextSanitizerPlugin = async (

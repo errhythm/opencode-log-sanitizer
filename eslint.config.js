@@ -18,6 +18,7 @@ export default tseslint.config(
         sourceType: 'module',
       },
       globals: {
+        URL: 'readonly',
         // Node.js globals
         console: 'readonly',
         process: 'readonly',
@@ -38,6 +39,7 @@ export default tseslint.config(
       '@typescript-eslint/explicit-function-return-type': 'off',
       '@typescript-eslint/no-explicit-any': 'warn',
       'no-console': 'error',
+      'no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
     },
   }
 );

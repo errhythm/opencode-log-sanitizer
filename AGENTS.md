@@ -4,11 +4,12 @@
 
 - **Build**: `mise run build` or `bun build ./src/index.ts --outdir dist --target bun`
 - **Test**: `mise run test` or `bun test`
-- **Single Test**: `bun test BackgroundTask.test.ts` (use file glob pattern)
-- **Watch Mode**: `bun test --watch`
+- **Type check**: `mise run typecheck` or `tsc --noEmit`
 - **Lint**: `mise run lint` (eslint)
 - **Fix Lint**: `mise run lint:fix` (eslint --fix)
 - **Format**: `mise run format` (prettier)
+- **Single Test**: `bun test src/sanitizer.test.ts` (use file glob pattern)
+- **Watch Mode**: `bun test --watch`
 
 ## Code Style Guidelines
 

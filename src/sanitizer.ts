@@ -7,6 +7,10 @@ export interface SanitizerConfig {
   enableBcryptDetection: boolean;
   /** Detect and redact base64 blobs longer than `maxStringLength`. @default true */
   enableBase64Detection: boolean;
+  /** Detect and redact common secret tokens (API keys, GitHub/GitLab tokens, AWS keys, etc.). @default true */
+  enableSecretDetection: boolean;
+  /** Detect and redact passwords in key/value pairs and connection strings. @default true */
+  enablePasswordDetection: boolean;
   /** Emit debug logs for plugin lifecycle and message sanitization. @default false */
   debug: boolean;
   /** File path for JSONL debug logs when debug is enabled. */
@@ -18,6 +22,8 @@ export const DEFAULT_CONFIG: SanitizerConfig = {
   enableJwtDetection: true,
   enableBcryptDetection: true,
   enableBase64Detection: true,
+  enableSecretDetection: true,
+  enablePasswordDetection: true,
   debug: false,
   debugLogFile: '~/.local/share/opencode/opencode-log-sanitizer.debug.log',
 };
@@ -30,6 +36,8 @@ export interface SanitizeResult {
     bcrypt: number;
     base64: number;
     longString: number;
+    secret: number;
+    password: number;
   };
 }
 
@@ -45,20 +53,20 @@ const JWT_PATTERN = /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{
 // bcrypt: fixed 60-char format, no variable quantifiers.
 const BCRYPT_PATTERN = /\$2[aby]\$\d{2}\$[A-Za-z0-9./]{53}/g;
 
+// Common secret tokens (API keys, access tokens, etc.). Matches well-known
+// prefixes so short secrets are redacted even when they fall under
+// maxStringLength. Conservative: only matches recognized prefixes to avoid
+// false positives on ordinary identifiers.
+const SECRET_PATTERN =
+  /\b(?:sk-(?:proj-|ant-|live-|test-|or-)?[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{36,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{35}|xox[baprs]-[0-9A-Za-z-]{10,}|sk_(?:live|test)_[A-Za-z0-9]{16,}|pk_(?:live|test)_[A-Za-z0-9]{16,}|rk_(?:live|test)_[A-Za-z0-9]{16,}|glpat-[A-Za-z0-9_-]{20,}|npm_[A-Za-z0-9]{36,})\b/g;
+
 // Base64 at the default 300-char threshold. Lookahead requires at least one `+` or `/`
 // to distinguish real base64 from hex strings, UUIDs, and long alphanumeric identifiers.
 const BASE64_PATTERN_300 = /(?=[A-Za-z0-9+/]*[+/])[A-Za-z0-9+/]{300,}={0,2}/g;
 
-const base64PatternCache = new Map<number, RegExp>();
-
 function getBase64Pattern(minLength: number): RegExp {
   if (minLength === 300) return BASE64_PATTERN_300;
-  let pattern = base64PatternCache.get(minLength);
-  if (!pattern) {
-    pattern = new RegExp(`(?=[A-Za-z0-9+/]*[+/])[A-Za-z0-9+/]{${minLength},}={0,2}`, 'g');
-    base64PatternCache.set(minLength, pattern);
-  }
-  return pattern;
+  return new RegExp(`(?=[A-Za-z0-9+/]*[+/])[A-Za-z0-9+/]{${minLength},}={0,2}`, 'g');
 }
 
 const NO_REDACT_OPEN = '<no-redact>';
@@ -102,6 +110,34 @@ export function redactBcrypt(text: string): { text: string; count: number } {
   const result = text.replace(BCRYPT_PATTERN, () => {
     count++;
     return '[redacted:bcrypt]';
+  });
+  return { text: result, count };
+}
+
+export function redactSecrets(text: string): { text: string; count: number } {
+  let count = 0;
+  SECRET_PATTERN.lastIndex = 0;
+  const result = text.replace(SECRET_PATTERN, () => {
+    count++;
+    return '[redacted:secret]';
+  });
+  return { text: result, count };
+}
+
+const PASSWORD_KV_PATTERN =
+  /\b(password|passwd|pwd)(["']?\s*[:=]\s*)("(?:[^"]*)"|'(?:[^']*)'|[^\s,;]+)/gi;
+// Password segment excludes `/` so `http://host:3000/path/@me` is not treated as credentials.
+const CONN_STR_PATTERN = /(\/\/[^:/\s]+):([^@\s/]+)@/g;
+
+export function redactPasswords(text: string): { text: string; count: number } {
+  let count = 0;
+  let result = text.replace(PASSWORD_KV_PATTERN, (_m, key, delim) => {
+    count++;
+    return `${key}${delim}[redacted:password]`;
+  });
+  result = result.replace(CONN_STR_PATTERN, (_m, prefix) => {
+    count++;
+    return `${prefix}:[redacted:password]@`;
   });
   return { text: result, count };
 }
@@ -196,12 +232,12 @@ export function _sanitize(text: string, cfg: SanitizerConfig): SanitizeResult {
     return {
       text,
       redactionCount: 0,
-      redactions: { jwt: 0, bcrypt: 0, base64: 0, longString: 0 },
+      redactions: { jwt: 0, bcrypt: 0, base64: 0, longString: 0, secret: 0, password: 0 },
     };
   }
 
   let totalRedactions = 0;
-  const redactions = { jwt: 0, bcrypt: 0, base64: 0, longString: 0 };
+  const redactions = { jwt: 0, bcrypt: 0, base64: 0, longString: 0, secret: 0, password: 0 };
   const hasNoRedact = text.includes(NO_REDACT_OPEN);
   let current = text;
   let blocks: NoRedactBlock[] = [];
@@ -224,6 +260,20 @@ export function _sanitize(text: string, cfg: SanitizerConfig): SanitizeResult {
     current = t;
     totalRedactions += count;
     redactions.bcrypt += count;
+  }
+
+  if (cfg.enableSecretDetection) {
+    const { text: t, count } = redactSecrets(current);
+    current = t;
+    totalRedactions += count;
+    redactions.secret += count;
+  }
+
+  if (cfg.enablePasswordDetection) {
+    const { text: t, count } = redactPasswords(current);
+    current = t;
+    totalRedactions += count;
+    redactions.password += count;
   }
 
   if (cfg.enableBase64Detection && (current.includes('+') || current.includes('/'))) {

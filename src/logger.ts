@@ -6,7 +6,7 @@ type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 interface AppLogger {
   app?: {
-    log?: (input: {
+    log?: (_input: {
       body: {
         service: string;
         level: LogLevel;

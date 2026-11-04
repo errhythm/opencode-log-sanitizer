@@ -5,6 +5,8 @@ import {
   redactBcrypt,
   redactBase64,
   redactLongStrings,
+  redactSecrets,
+  redactPasswords,
   extractNoRedactBlocks,
   restoreNoRedactBlocks,
   DEFAULT_CONFIG,
@@ -101,6 +103,40 @@ describe('redactBcrypt', () => {
     const { text, count } = redactBcrypt(input);
     expect(text).toBe(input);
     expect(count).toBe(0);
+  });
+});
+
+describe('redactSecrets', () => {
+  it('redacts tokens with known prefixes', () => {
+    const { text, count } = redactSecrets(
+      `key=sk-proj-${'a'.repeat(20)} aws=AKIA${'A'.repeat(16)}`
+    );
+    expect(text).toBe('key=[redacted:secret] aws=[redacted:secret]');
+    expect(count).toBe(2);
+  });
+
+  it('leaves ordinary identifiers alone', () => {
+    expect(redactSecrets('task-runner sk-short').count).toBe(0);
+  });
+});
+
+describe('redactPasswords', () => {
+  it('redacts key/value passwords, including JSON keys', () => {
+    expect(redactPasswords('password=hunter2').text).toBe('password=[redacted:password]');
+    expect(redactPasswords('{"password": "hunter2"}').text).toBe(
+      '{"password": [redacted:password]}'
+    );
+  });
+
+  it('redacts connection string credentials', () => {
+    expect(redactPasswords('postgres://admin:s3cret@db:5432/app').text).toBe(
+      'postgres://admin:[redacted:password]@db:5432/app'
+    );
+  });
+
+  it('does not treat a port and path containing @ as credentials', () => {
+    const input = 'GET http://localhost:3000/users/@me';
+    expect(redactPasswords(input)).toEqual({ text: input, count: 0 });
   });
 });
 

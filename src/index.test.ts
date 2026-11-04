@@ -88,6 +88,8 @@ describe('ContextSanitizer plugin', () => {
       bcrypt: 1,
       base64: 1,
       longString: 1,
+      secret: 0,
+      password: 0,
     });
   });
 });
